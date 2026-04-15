@@ -1,9 +1,9 @@
 # AccuracyCoin
 AccuracyCoin is a large collection of NES accuracy tests on a single NROM cartridge.
 
-This ROM was designed for an NTSC console with an RP2A03G CPU and RP2C02G PPU. Some tests might fail on hardware with a different revision.
+This ROM was designed for an NTSC console with an RP2A03G CPU and RP2C02G PPU. Some tests might be automatically skipped on hardware with a different revision.
 
-This ROM currently has 134 tests. These tests print "PASS" or "FAIL" on screen, and in the event of a failure, this ROM also provides an error code. In addition to those tests, this ROM also has 5 tests labeled "DRAW", which don't actually test for anything; rather, they simply print information on screen.
+This ROM currently has 138 tests. These tests print "PASS" or "FAIL" on screen, and in the event of a failure, this ROM also provides an error code. In addition to those tests, this ROM also has 5 tests labeled "DRAW", which don't actually test for anything; rather, they simply print information on screen.
 
 Here's an example of the menu in this ROM shown on an emulator failing a few tests, passing others, and a few tests on screen haven't been run yet. (The cursor is currently next to the "The Decimal Flag" test.)
 
@@ -313,8 +313,8 @@ For more information, I recommend reading the fully commented assembly code for 
   B: The IRQ flag was enabled too late. (writing to $4017 on an odd CPU cycle.)  
   C: The IRQ flag was enabled too early. (writing to $4017 on an even CPU cycle.)  
   D: The IRQ flag was enabled too late. (writing to $4017 on an even CPU cycle.)  
-  E: Reading $4015 on the same cycle the IRQ flag is set should not clear the IRQ flag. (it gets set again on the following 2 CPU cycles)  
-  F: Reading $4015 1 cycle later than the previous test should not clear the IRQ flag. (it gets set again on the following CPU cycle)  
+  E: Reading $4015 on the last cycle before the IRQ flag is set should not clear the IRQ flag. (it gets set on the following 2 CPU cycles)  
+  F: Reading $4015 on the same cycle the IRQ flag is set should not clear the IRQ flag. (it gets set again on the following CPU cycle)  
   G: Reading $4015 1 cycle later than the previous test should not clear the IRQ flag. (it gets set again on this CPU cycle)  
   H: Reading $4015 1 cycle later than the previous test should clear the IRQ flag.  
   I: The Frame Counter Interrupt flag should not have been set 29827 cycles after resetting the frame counter.  
@@ -383,11 +383,12 @@ For more information, I recommend reading the fully commented assembly code for 
 
 ### Controller Clocking
   1: Reading $4016 more than 8 times should always result in bit 0 being set to 1.  
-  2: Your emulator did not pass the SLO Absolute, X test.  
-  3: (NES / AV Famicom only) Double-reading address $4016 should only clock the controller once.  
-  4: (NES / AV Famicom only) This double-read should be the same value for both reads.  
-  5: (NES / AV Famicom only) The "put"/"halt" cycles of the DMC DMA should be able to clock the controller if the DMA occurs during a read from $4016. The LDA instruction should clock the controller again after the DMC DMA's "get" cycle.  
-  6: (NES / AV Famicom only) If the DMC DMA "get" cycle has a bus conflict with $4016, the controller will only get clocked once during LDA $4016 even with the DMC DMA occurring.  
+  2: Reading from a controller port while it is still strobed shouldn't affect the contents of the shift register, as it should be constantly loaded with the currently held buttons.  
+  3: Your emulator did not pass the SLO Absolute, X test.  
+  4: (NES / AV Famicom only) Double-reading address $4016 should only clock the controller once.  
+  5: (NES / AV Famicom only) This double-read should be the same value for both reads.  
+  6: (NES / AV Famicom only) The "put"/"halt" cycles of the DMC DMA should be able to clock the controller if the DMA occurs during a read from $4016. The LDA instruction should clock the controller again after the DMC DMA's "get" cycle.  
+  7: (NES / AV Famicom only) If the DMC DMA "get" cycle has a bus conflict with $4016, the controller will only get clocked once during LDA $4016 even with the DMC DMA occurring.  
 
 ## Page 15: Power On State
 
@@ -411,10 +412,11 @@ or
 00 00 00 00 FF FF FF FF
 00 00 00 00 FF FF FF FF
 </pre>
+  Other known patterns include all `00`s or all `FF`s.  
 
 ### DRAW CPU Registers
   This test prints uninitialized register contents recorded at power on.  
-  Note that there has been consoles known to have noise in some of these bits, and there is no "canonical" power on state for these.  
+  Note that there have been consoles known to have noise in some of these bits, and there is no "canonical" power on state for these.  
 <pre>
               A 00
               X 00
@@ -438,22 +440,37 @@ or
 00 00 00 00 FF FF FF FF
 00 00 00 00 FF FF FF FF
 </pre>
+  Other known patterns include all `00`s or all `FF`s.  
 
 ### DRAW Palette RAM
   This test prints uninitialzed RAM values from Palette RAM, $3F00 through $3F1F.  
   Note that pre-G PPUs are unable to read palette RAM.  
-  Additionally, every console tested appears to have a unique power on state for palette RAM. My console has the following:  
+  Additionally, every console tested appears to have a unique and consistent power on state for palette RAM. My console has the following:  
 <pre>
 00 00 28 00 00 08 00 00
 00 01 01 20 00 08 00 02
 00 00 00 00 00 02 21 00
 00 00 00 00 00 10 00 00
 </pre>
+  I've ran my test on other consoles, and here are a few other results:  
+<pre>
+10 00 00 00 00 00 00 00
+00 20 00 00 00 00 00 00
+10 20 00 10 00 10 00 00
+00 10 10 20 00 10 20 00
+</pre>
+  While the two result above would suggest it's mostly all zeroes with a few bit flips, I have also seen the following:  
+<pre>
+20 24 0A 25 34 11 0F 02
+00 26 04 25 08 1D 25 12
+20 07 02 00 34 22 00 00
+00 08 00 00 08 02 03 02
+</pre>
 
 ## Page 16: PPU Behavior  
 
 ### CHR ROM is not Writable
-  1: Writes to the PPU Address space from the range $0000 through $1FFF should not overwrite teh CHR data if the cartridge has CHR ROM instead of CHR RAM.  
+  1: Writes to the PPU Address space from the range $0000 through $1FFF should not overwrite the CHR data if the cartridge has CHR ROM instead of CHR RAM.  
 
 ### PPU Register Mirroring
   1: PPU registers should be mirrored through $3FFF.  
@@ -461,16 +478,17 @@ or
 ### PPU Register Open Bus
   1: Reading from a write-only register PPU should return the most recently written value to the PPU data bus.  
   2: All PPU Registers should update the PPU data bus when written.  
-  3: Bits 0 through 4 when reading from address $2002 should read read the PPU data bus.  
-  4: The PPU data bus value should decay before 1 second passes.  
+  3: Bits 0 through 4 when reading from address $2002 should read the PPU data bus.  
+  4: Reads from $2002 should update the upper 3 bits of the ppu data bus.  
+  5: The PPU data bus value should decay before 1 second passes.  
 
 ### PPU Read Buffer
   1: Reading from the PPU register at $2007 is not working at all in this emulator.  
   2: Reading address $2007 should increment the "v" register.  
   3: There should be a 1-byte buffer when reading from $2007.  
   4: Reading from CHR ROM should use the buffer.  
-  5: Reading from Palette RAM should NOT use the buffer.  
-  6: Writing to $2006 does not modify the buffer value.  
+  5: Writing to $2006 does not modify the buffer value.  
+  6: Reading from Palette RAM should NOT use the buffer.  
   7: The value on the nametable at $2F00 through $2FFF should be put in the buffer when reading from palette RAM at $3F00 through $3FFF.  
 
 ### Palette RAM Quirks
@@ -479,6 +497,8 @@ or
   3: The backdrop colors for palettes 1, 2, and 3 should not be mirrors of the backdrop color of palette 0.  
   4: The backdrop colors for sprites should be mirrors of the backdrop colors for backgrounds.  
   5: The values read from Palette RAM should only be 6-bit, with the upper 2 bits being PPU open bus.  
+  6: With "Greyscale Mode" enabled, the lower four bits of the value read should all be zero.
+  7: With "Greyscale Mode" enabled, the lower four bits of the value written should be unaffected.
 
 ### Rendering Flag Behavior
   1: Background shift registers should not be initialized or clocked when rendering is entirely disabled.  
@@ -505,7 +525,8 @@ or
   5: The NMI should not occur a second time if writing $80 to $2000 when the NMI flag is already enabled.  
   6: The NMI should not occur a second time if writing $80 to $2000 when the NMI flag is already enabled, and the NMI flag was enabled going into VBlank.  
   7: The NMI should occur an additional time if you disable and then re-enable the NMI.  
-  8: The NMI should occur 2 instructions after the NMI is enabled. (See Interrupt flag latency.)  
+  8: The NMI is polled before the write cycle of STA, resulting in a gap between enabling the NMI and the NMI occurring. (See Interrupt flag latency.)  
+  9: The NMI is polled between the write cycles of INC, resulting the NMI occurring immediately after the INC. (See Interrupt flag latency.)  
 
 ### NMI Timing
   1: The NMI did not occur on the correct PPU cycle.  
@@ -543,6 +564,10 @@ or
   D: Your sprites are being rendered one scanline higher than they should be, or your sprite zero hit detection isn't actually checking for "solid pixels" overlapping.  
   E: The sprite zero hit flag was set too early.  
 
+### $2002 Flag Timing
+  1: The flags were not cleared on the correct ppu cycle.  
+  2: The flags were not set on the correct ppu cycle.  
+
 ### Suddenly Resize Sprite
   1: Sprite Zero Hits should be working.  
   2: Writing to $2000 to enable 16 pixel tall sprites at the beginning of HBlank should properly allow an otherwise out-of-range 8 pixel tall sprite to extend into the current scanline.  
@@ -560,14 +585,14 @@ or
   2: Misaligned OAM should stay misaligned until an object's Y position is out of the range of this scanline, at which point the OAM address is incremented by 4 and bitwise ANDed with $FC.  
   3: If Secondary OAM is full when the Y position is out of range, instead of incrementing the OAM Address by 4 and bitwise ANDing with $FC, you should instead only increment the OAM address by 5.  
   4: Misaligned OAM should realign if an object's X position is out of the range of this scanline, at which point the OAM address is incremented by 1 and bitwise ANDed with $FC.  
-  5: If Secondary OAM is full when the X position is out of range, instead of incrementing the OAM Address by 1 and bitwise ANDing with $FC, you should instead only increment the OAM address by 5.  
+  5: A combination of tests 3 and 4 but occuring on the same scanline.  
   6: The same as test 4, but the initial OAM address was $02 instead of $01. If you see this error code, you might have a false positive on test 4.  
   7: The same as test 5, but the initial OAM address was $03 instead of $01. If you see this error code, you might have a false positive on test 5.  
 
 ### Address $2004 Behavior
   1: Writes to $2004 should update OAM and increment the OAM address by 1.  
   2: Reads from $2004 should give you a value in OAM, but do not increment the OAM address.  
-  3: Reads from the attribute bytes should be missing bits 2 through 5.  
+  3: Reads from the attribute bytes should be missing bits 2 through 4.  
   4: Reads from $2004 during PPU cycles 1 to 64 of a visible scanline (with rendering enabled) should always read $FF.  
   5: Reads from $2004 during PPU cycles 1 to 64 of a visible scanline (with rendering disabled) should do a regular read of $2004.  
   6: Writing to $2004 on a visible scanline should increment the OAM address by 4.  
@@ -606,16 +631,28 @@ or
   3: The background shift registers should not be clocked during H-Blank or F-Blank. After re-enabling rendering, a sprite zero hit should be able to occur entirely on stale background shift register data.  
   4: The sprite shifters should treat all sprites X positions as 0 if rendering has already been disabled and remains that way during dot 339.  
 
+### Stale Sprite Shift Registers
+  1: Sprite Zero Hits should be working.  
+  2: Sprite Zero hits shouldn't occur at X=$FF.  
+  3: The sprite shift registers should not be clocked during H-Blank or F-Blank. F-Blank should prevent the shift registers from being reloaded. The sprite shifter counter shouldn't be reloaded during F-blank on dot 339, allowing the sprite to be drawn as soon as rendering is re-enabled.  
+
 ### BG Serial In
   1: Sprite zero hits should not occur when the nametable is entirely blank.  
   2: Background shift registers should bring in a 1 into bit 0 when shifted. These can be drawn on screen with carefully timed writes to $2001 to enable/disable rendering to skip reloading the shift registers.  
 
 ### Sprites On Scanline 0
   1: Sprites at Y=0 should actually be drawn at Y=1.  
-  2: A sprite should be able to be drawn at Y=0 via the pre-render scanline's sprite evaluation with stale secondary OAM data.  
+  2: A sprite should be able to be drawn at Y=0 via the pre-render scanline's sprite fetch with stale secondary OAM data.  
   3: (Composite PPU Only) Consecutive frames should shift the background on scanline 0, causing the sprite zero hit to miss on every other frame. (Tested at X=$80)  
   3: (RGB PPU Only) Sprite zero hits should not occur at X=$00 during this test on an RGB PPU.  
   4: (Composite PPU Only) Consecutive frames should shift the background on scanline 0, causing the sprite zero hit to miss on every other frame. (Tested at X=$00)  
+
+### $2004 Stress Test  
+  1: Reading from $2004 (with rendering enabled) should read from the "OAM Buffer" used during OAM Evaluation. Your results did not match the expected results of the test where OAMADDR overflows. See TEST_2004_Stress_Evaluate in the .asm code for details.  
+  2: Reading from $2004 (with rendering enabled) should read from the "OAM Buffer" used during OAM Evaluation. Your results did not match the expected results of the test with more than 8 in-range objects. See TEST_2004_Stress_Evaluate in the .asm code for details.  
+
+### $2007 Stress Test  
+  1: Reading from $2007 should set up the PPU Read Buffer two ppu cycles after the CPU Read ends. Reading from $2007 (with rendering enabled) should set up the PPU Read Buffer with the same value as the resulting read from the background or sprite fetch that occured on the same ppu cycle as the read for the PPU Read Buffer. If you fail this test, you are likely reading from memory to set up the PPU Read Buffer on the wrong ppu cycle, missing dummy nametable reads during sprite fetch, or missing dummy nametable reads at the end of a scanline.  
 
 ## Page 20: CPU Behavior 2
 
@@ -681,6 +718,7 @@ or
   V: BRK should perform a dummy read on cycle 2.  
   W: RTI should perform a dummy read on cycle 2.  
   X: RTS should perform a dummy read on cycle 2.  
+  Y: RTS should perform a dummy read on cycle 6.  
 
 ### Branch Dummy Reads
   1: Your emulator does not accurately emulate RAM Mirroring.  
@@ -691,8 +729,9 @@ or
 
 ### JSR Edge Cases
   1: Your emulator pushed the wrong value for the return address.  
-  2: Your emulator has incorrect open bus emulation.  
-  3: JSR should leave the value of the second operand on the data bus.  
+  2: JSR should push the return address to the stack between reading the first and second operand.
+  3: Your emulator has incorrect open bus emulation.  
+  4: JSR should leave the value of the second operand on the data bus.  
 
 # Success Codes
 Some tests have multiple acceptable behaviors that are tested for in this ROM. The behavior used will either be printed on screen after running the test, or you'll see a "success code" on the all-test table.  
@@ -725,6 +764,14 @@ Some tests have multiple acceptable behaviors that are tested for in this ROM. T
 ### Controller Clocking
   1: The controller was read the way a US-released NES / AV Famicom should read controllers.  
   2: The controller was read the way a Famicom should read controllers.  
+
+### PPU Read Buffer
+  E: The Picture Processing Unit behavide like revision E or earlier.
+  G: The Picture Processing Unit behavide like revision G or earlier.
+
+### Address $2004 Behavior
+  E: The Picture Processing Unit behavide like revision E or earlier.
+  G: The Picture Processing Unit behavide like revision G or earlier.
 
 ### Sprites on Scanline 0
   1: This test was ran on a composite PPU.  
